@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the LT price forecast daily job at 15:00, 16:00 and 17:00 Vilnius time
+
+[Timer]
+OnCalendar=*-*-* 15,16,17:00:00 Europe/Vilnius
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=LT price forecast daily job (fetch, gap repair, forecast, retention)
+After=network-online.target elprice.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/azureuser/elproject
+EnvironmentFile=/home/azureuser/elproject/.env
+ExecStart=/home/azureuser/elproject/.venv/bin/python -m pipeline.daily_job
