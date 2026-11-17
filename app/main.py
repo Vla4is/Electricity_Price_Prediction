@@ -1,14 +1,25 @@
 """LT Electricity Price Forecast web application."""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.db import init_db
+
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="LT Electricity Price Forecast")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create the database schema on startup."""
+    init_db()
+    yield
+
+
+app = FastAPI(title="LT Electricity Price Forecast", lifespan=lifespan)
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
