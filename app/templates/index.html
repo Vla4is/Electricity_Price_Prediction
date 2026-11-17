@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LT Electricity Price Forecast</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  </style>
+</head>
+<body>
+  <h1>LT Electricity Price Forecast</h1>
+  <p>Placeholder chart with dummy data.</p>
+  <canvas id="priceChart"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>
+    const hours = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, "0")}:00`);
+    const prices = [62,58,55,54,57,66,82,98,91,80,72,68,65,63,66,74,88,105,112,96,84,76,70,65];
+    new Chart(document.getElementById("priceChart"), {
+      type: "line",
+      data: { labels: hours, datasets: [{ label: "Price (EUR/MWh, dummy)", data: prices, borderColor: "#2563eb", tension: 0.3 }] }
+    });
+  </script>
+</body>
+</html>

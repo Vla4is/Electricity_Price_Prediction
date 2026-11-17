@@ -1,0 +1,6 @@
+tunnel: b37e8150-602f-40df-beb5-3c4a24216daa
+credentials-file: /home/azureuser/elproject/cloudflared/b37e8150-602f-40df-beb5-3c4a24216daa.json
+ingress:
+  - hostname: catchingfish.online
+    service: http://localhost:8000
+  - service: http_status:404
