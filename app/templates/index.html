@@ -9,6 +9,7 @@
     button { font: inherit; padding: .35rem .8rem; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; cursor: pointer; }
     button.active { background: #1f2937; color: #fff; border-color: #1f2937; }
     .row { display: flex; flex-wrap: wrap; gap: .4rem; margin: .8rem 0; }
+    [hidden] { display: none !important; }  /* otherwise .row's display:flex overrides the hidden attribute */
     #days button { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
     #days small { font-size: .7rem; opacity: .7; }
     #days button.forecast:not(.active) { border-style: dashed; }
