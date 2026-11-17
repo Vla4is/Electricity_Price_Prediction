@@ -5,6 +5,8 @@ After=network.target
 [Service]
 User=azureuser
 WorkingDirectory=/home/azureuser/elproject
+# Sets HF_HOME (model cache in ./models), MODEL_NAME, API_KEY etc. before Python starts.
+EnvironmentFile=/home/azureuser/elproject/.env
 ExecStart=/home/azureuser/elproject/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=3

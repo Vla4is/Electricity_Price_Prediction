@@ -5,3 +5,5 @@
 *.db-shm
 __pycache__
 cloudflared/
+cloudflared/*.json
+models/
