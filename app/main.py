@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db import init_db
@@ -67,16 +67,6 @@ class ForecastRequest(BaseModel):
         description="Hours to forecast (1–168). Defaults to HORIZON_HOURS from .env (144), "
                     "which the daily live job also uses.",
     )
-
-    @field_validator("prices", mode="before")
-    @classmethod
-    def no_empty_values(cls, v):
-        """Reject null or blank entries with a clear message instead of a type error."""
-        if isinstance(v, list):
-            for i, x in enumerate(v):
-                if x is None or (isinstance(x, str) and not x.strip()):
-                    raise ValueError(f"prices[{i}] is empty")
-        return v
 
 
 class ForecastResponse(BaseModel):
