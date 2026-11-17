@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-11-17T22:04:49Z",
+  "model": "amazon/chronos-bolt-small",
+  "context_hours": 672,
+  "horizon_hours": 144,
+  "cutoffs": [
+    "2026-10-29T21:00:00Z",
+    "2026-10-30T21:00:00Z",
+    "2026-10-31T21:00:00Z",
+    "2026-11-01T21:00:00Z",
+    "2026-11-02T21:00:00Z",
+    "2026-11-03T21:00:00Z",
+    "2026-11-04T21:00:00Z",
+    "2026-11-05T21:00:00Z",
+    "2026-11-06T21:00:00Z",
+    "2026-11-07T21:00:00Z",
+    "2026-11-08T21:00:00Z",
+    "2026-11-09T21:00:00Z",
+    "2026-11-10T21:00:00Z",
+    "2026-11-11T21:00:00Z",
+    "2026-11-12T21:00:00Z"
+  ],
+  "results": [
+    {
+      "day": "1",
+      "chronos_mae": 7.353,
+      "naive_mae": 14.205,
+      "coverage_pct": 69.4
+    },
+    {
+      "day": "2",
+      "chronos_mae": 11.197,
+      "naive_mae": 15.185,
+      "coverage_pct": 56.9
+    },
+    {
+      "day": "3",
+      "chronos_mae": 13.622,
+      "naive_mae": 15.444,
+      "coverage_pct": 49.7
+    },
+    {
+      "day": "4",
+      "chronos_mae": 13.412,
+      "naive_mae": 15.713,
+      "coverage_pct": 38.9
+    },
+    {
+      "day": "5",
+      "chronos_mae": 12.407,
+      "naive_mae": 14.794,
+      "coverage_pct": 42.8
+    },
+    {
+      "day": "6",
+      "chronos_mae": 11.588,
+      "naive_mae": 13.968,
+      "coverage_pct": 42.5
+    },
+    {
+      "day": "overall",
+      "chronos_mae": 11.597,
+      "naive_mae": 14.885,
+      "coverage_pct": 50.0
+    }
+  ]
+}

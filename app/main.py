@@ -3,6 +3,7 @@
 import math
 import secrets
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -13,8 +14,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.db import init_db
+from app.db import get_conn, init_db
 from app.model import load_forecaster
+from pipeline.backfill import end_of_tomorrow_utc, to_ts_utc
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -83,8 +85,42 @@ class ForecastResponse(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    """Render the main page with a placeholder price chart."""
+    """Render the dashboard; the page loads its data from /api/prices and /api/forecast."""
     return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/api/prices")
+def api_prices() -> list[dict]:
+    """Hourly prices (EUR/MWh) from the last 7 days through the end of tomorrow (Vilnius)."""
+    now = datetime.now(UTC)
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT ts_utc, price_eur_mwh FROM prices_hourly "
+            "WHERE ts_utc >= ? AND ts_utc < ? ORDER BY ts_utc",
+            (to_ts_utc(now - timedelta(days=7)), to_ts_utc(end_of_tomorrow_utc(now))),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"ts_utc": r[0], "price": r[1]} for r in rows]
+
+
+@app.get("/api/forecast")
+def api_forecast() -> dict:
+    """Rows of the latest live forecast (EUR/MWh), plus that run's made_at, cutoff and model."""
+    conn = get_conn()
+    try:
+        rows = conn.execute("SELECT * FROM latest_forecast ORDER BY target_ts_utc").fetchall()
+    finally:
+        conn.close()
+    first = rows[0] if rows else None
+    return {
+        "made_at": first["made_at"] if first else None,
+        "cutoff_ts_utc": first["cutoff_ts_utc"] if first else None,
+        "model": first["model"] if first else None,
+        "rows": [{"ts_utc": r["target_ts_utc"], "p10": r["p10"], "p50": r["p50"], "p90": r["p90"]}
+                 for r in rows],
+    }
 
 
 @app.get("/health")

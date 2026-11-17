@@ -5,21 +5,177 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LT Electricity Price Forecast</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; }
+    button { font: inherit; padding: .35rem .8rem; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; cursor: pointer; }
+    button.active { background: #1f2937; color: #fff; border-color: #1f2937; }
+    .row { display: flex; flex-wrap: wrap; gap: .4rem; margin: .8rem 0; }
+    #days button { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+    #days small { font-size: .7rem; opacity: .7; }
+    #days button.forecast:not(.active) { border-style: dashed; }
+    #summary { margin: .8rem 0; }
+    footer { margin-top: 2rem; color: #6b7280; font-size: .9rem; }
   </style>
 </head>
 <body>
   <h1>LT Electricity Price Forecast</h1>
-  <p>Placeholder chart with dummy data.</p>
-  <canvas id="priceChart"></canvas>
+  <div class="row" id="views">
+    <button data-view="week" class="active">Week</button>
+    <button data-view="day">Day</button>
+  </div>
+  <div class="row" id="days" hidden></div>
+  <canvas id="chart"></canvas>
+  <p id="summary" hidden></p>
+  <footer id="footer"></footer>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script>
-    const hours = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, "0")}:00`);
-    const prices = [62,58,55,54,57,66,82,98,91,80,72,68,65,63,66,74,88,105,112,96,84,76,70,65];
-    new Chart(document.getElementById("priceChart"), {
-      type: "line",
-      data: { labels: hours, datasets: [{ label: "Price (EUR/MWh, dummy)", data: prices, borderColor: "#2563eb", tension: 0.3 }] }
-    });
+    const TZ = "Europe/Vilnius";
+    // "sv-SE" gives "YYYY-MM-DD HH:MM", which is easy to split into date and time.
+    const fmt = new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit",
+                                                   day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", day: "numeric" });
+    const local = ts => fmt.format(new Date(ts));     // "2026-11-19 14:00"
+    const ckwh = v => v / 10;                         // EUR/MWh -> c/kWh
+    const c2 = v => `${v.toFixed(2)} c/kWh`;
+    const HOUR = 3600e3;
+
+    let chart, data;
+
+    // Vertical dashed line at the label index given in options.plugins.cutoffMarker.index.
+    const cutoffMarker = {
+      id: "cutoffMarker",
+      afterDatasetsDraw(ch, _a, opts) {
+        if (opts.index == null || opts.index < 0) return;
+        const x = ch.scales.x.getPixelForValue(opts.index), { top, bottom } = ch.chartArea, ctx = ch.ctx;
+        ctx.save();
+        ctx.strokeStyle = "#6b7280"; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = "#374151"; ctx.font = "12px system-ui";
+        ctx.fillText("forecast starts", x + 4, top + 12);
+        ctx.restore();
+      },
+    };
+
+    function draw(config) {
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("chart"), config);
+    }
+
+    function showWeek() {
+      const { times, real, fc, cutoff } = data;
+      const band = key => times.map(t => (fc[t] ? ckwh(fc[t][key]) : null));
+      draw({
+        type: "line",
+        data: {
+          labels: times.map(local),
+          datasets: [
+            { label: "Real price", data: times.map(t => real[t] ?? null), borderColor: "#2563eb", pointRadius: 0 },
+            { label: "Forecast p50", data: band("p50"), borderColor: "#ea580c", borderDash: [6, 4], pointRadius: 0 },
+            { label: "p10", data: band("p10"), borderColor: "transparent", pointRadius: 0, fill: false },
+            { label: "p10–p90", data: band("p90"), borderColor: "transparent", pointRadius: 0,
+              backgroundColor: "rgba(234, 88, 12, 0.15)", fill: "-1" },
+          ],
+        },
+        options: {
+          interaction: { mode: "index", intersect: false },
+          scales: { x: { ticks: { maxTicksLimit: 14 } }, y: { title: { display: true, text: "c/kWh" } } },
+          plugins: {
+            legend: { labels: { filter: i => i.text !== "p10" } },
+            tooltip: { callbacks: { label: c => (c.raw == null ? null : `${c.dataset.label}: ${c2(c.raw)}`) } },
+            cutoffMarker: { index: times.indexOf(cutoff) },
+          },
+        },
+        plugins: [cutoffMarker],
+      });
+    }
+
+    function showDay(key) {
+      const day = data.days.find(d => d.key === key);
+      document.querySelectorAll("#days button").forEach(b => b.classList.toggle("active", b.dataset.key === key));
+      const hrs = day.hours, vals = hrs.map(h => h.value);
+
+      // Cheapest 3 consecutive hours.
+      let best = null;
+      for (let i = 0; i + 3 <= hrs.length; i++) {
+        if (Date.parse(hrs[i + 2].ts) - Date.parse(hrs[i].ts) !== 2 * HOUR) continue;
+        const avg = (vals[i] + vals[i + 1] + vals[i + 2]) / 3;
+        if (!best || avg < best.avg) best = { i, avg };
+      }
+      const cheap = i => best && i >= best.i && i < best.i + 3;
+      const max = vals.indexOf(Math.max(...vals));
+      const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+      const isFc = h => h.p10 != null;
+
+      draw({
+        type: "bar",
+        data: {
+          labels: hrs.map(h => local(h.ts).slice(11)),
+          datasets: [
+            { label: day.kind === "forecast" ? "Forecast p50" : "Real price", data: vals, order: 2,
+              backgroundColor: hrs.map((h, i) => cheap(i) ? "#16a34a" : isFc(h) ? "#fdba74" : "#93c5fd") },
+            ...(day.kind === "forecast" ? [{
+              label: "p10–p90", data: hrs.map(h => (isFc(h) ? [h.p10, h.p90] : null)), order: 1,
+              grouped: false, barPercentage: 0.25, backgroundColor: "rgba(124, 45, 18, 0.45)" }] : []),
+          ],
+        },
+        options: {
+          scales: { y: { beginAtZero: true, title: { display: true, text: "c/kWh" } } },
+          plugins: { tooltip: { callbacks: { label: c => Array.isArray(c.raw)
+            ? `p10–p90: ${c.raw[0].toFixed(2)}–${c2(c.raw[1])}` : `${c.dataset.label}: ${c2(c.raw)}` } } },
+        },
+      });
+
+      const end = best && new Date(Date.parse(hrs[best.i].ts) + 3 * HOUR).toISOString();
+      document.getElementById("summary").innerHTML = [
+        best ? `<b>Cheapest 3 hours:</b> ${local(hrs[best.i].ts).slice(11)}–${local(end).slice(11)} (avg ${c2(best.avg)})` : null,
+        `<b>Most expensive hour:</b> ${local(hrs[max].ts).slice(11)} (${c2(vals[max])})`,
+        `<b>Day average:</b> ${c2(avg)}`,
+      ].filter(Boolean).join(" · ");
+    }
+
+    function setView(view) {
+      document.querySelectorAll("#views button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+      document.getElementById("days").hidden = view !== "day";
+      document.getElementById("summary").hidden = view !== "day";
+      if (view === "week") showWeek();
+      else showDay(document.querySelector("#days button.active")?.dataset.key ?? data.days[0].key);
+    }
+
+    async function main() {
+      const [prices, forecast] = await Promise.all([
+        fetch("/api/prices").then(r => r.json()),
+        fetch("/api/forecast").then(r => r.json()),
+      ]);
+      const real = Object.fromEntries(prices.map(p => [p.ts_utc, ckwh(p.price)]));
+      const fc = Object.fromEntries(forecast.rows.map(r => [r.ts_utc, r]));
+      const times = [...new Set([...Object.keys(real), ...Object.keys(fc)])].sort();
+
+      // Group hours by Vilnius date. A real price wins over a forecast for the same hour.
+      const byDay = {};
+      for (const t of times) {
+        const h = real[t] != null ? { ts: t, value: real[t] }
+          : { ts: t, value: ckwh(fc[t].p50), p10: ckwh(fc[t].p10), p90: ckwh(fc[t].p90) };
+        (byDay[local(t).slice(0, 10)] ??= []).push(h);
+      }
+      const days = Object.entries(byDay).map(([key, hours]) => ({
+        key, hours, label: dayFmt.format(new Date(hours[0].ts)),
+        kind: hours.some(h => h.p10 != null) ? "forecast" : "real",
+      }));
+      data = { times, real, fc, days, cutoff: forecast.cutoff_ts_utc };
+
+      const today = local(new Date().toISOString()).slice(0, 10);
+      document.getElementById("days").innerHTML = days.map(d =>
+        `<button data-key="${d.key}" class="${d.kind}${d.key === today ? " active" : ""}">${d.label}<small>${d.kind}</small></button>`
+      ).join("");
+      document.querySelectorAll("#days button").forEach(b => (b.onclick = () => showDay(b.dataset.key)));
+      document.querySelectorAll("#views button").forEach(b => (b.onclick = () => setView(b.dataset.view)));
+
+      document.getElementById("footer").textContent = forecast.made_at
+        ? `Forecast made at ${local(forecast.made_at)} with ${forecast.model}`
+        : "No forecast yet.";
+      setView("week");
+    }
+    main();
   </script>
 </body>
 </html>
